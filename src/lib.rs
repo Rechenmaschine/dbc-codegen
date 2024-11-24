@@ -117,58 +117,65 @@ pub fn codegen(config: Config<'_>, out: impl Write) -> Result<()> {
         eprintln!("{:#?}", dbc);
     }
     let mut w = BufWriter::new(out);
-
     writeln!(&mut w, "// Generated code!")?;
-    writeln!(
-        &mut w,
-        "#![allow(unused_comparisons, unreachable_patterns, unused_imports)]"
-    )?;
-    if config.allow_dead_code {
-        writeln!(&mut w, "#![allow(dead_code)]")?;
+    writeln!(&mut w)?;
+    writeln!(&mut w, "pub use generated::*;")?;
+    writeln!(&mut w)?;
+
+    writeln!(&mut w, "mod generated {{")?;
+    {
+        let mut w = PadAdapter::wrap(&mut w);
+        writeln!(
+            &mut w,
+            "#![allow(unused_comparisons, unreachable_patterns, unused_imports)]"
+        )?;
+        if config.allow_dead_code {
+            writeln!(&mut w, "#![allow(dead_code)]")?;
+        }
+        writeln!(&mut w, "#![allow(clippy::let_and_return, clippy::eq_op)]")?;
+        writeln!(
+            &mut w,
+            "#![allow(clippy::useless_conversion, clippy::unnecessary_cast)]"
+        )?;
+        writeln!(
+            &mut w,
+            "#![allow(clippy::excessive_precision, clippy::manual_range_contains, clippy::absurd_extreme_comparisons, clippy::too_many_arguments)]"
+        )?;
+        writeln!(&mut w, "#![deny(clippy::arithmetic_side_effects)]")?;
+        writeln!(&mut w)?;
+        writeln!(
+            &mut w,
+            "//! Message definitions from file `{:?}`",
+            config.dbc_name
+        )?;
+        writeln!(&mut w, "//!")?;
+        writeln!(&mut w, "//! - Version: `{:?}`", dbc.version())?;
+        writeln!(&mut w)?;
+        writeln!(&mut w, "use core::ops::BitOr;")?;
+        writeln!(&mut w, "use bitvec::prelude::*;")?;
+        writeln!(&mut w, "use embedded_can::{{Id, StandardId, ExtendedId}};")?;
+
+        config.impl_arbitrary.fmt_cfg(&mut w, |w| {
+            writeln!(w, "use arbitrary::{{Arbitrary, Unstructured}};")
+        })?;
+
+        config.impl_serde.fmt_cfg(&mut w, |w| {
+            writeln!(w, "use serde::{{Serialize, Deserialize}};")
+        })?;
+
+        writeln!(&mut w)?;
+
+        render_dbc(&mut w, &config, &dbc).context("could not generate Rust code")?;
+
+        writeln!(&mut w)?;
+        writeln!(&mut w, "/// This is just to make testing easier")?;
+        writeln!(&mut w, "#[allow(dead_code)]")?;
+        writeln!(&mut w, "fn main() {{}}")?;
+        writeln!(&mut w)?;
+        render_error(&mut w, &config)?;
+        render_arbitrary_helpers(&mut w, &config)?;
     }
-    writeln!(&mut w, "#![allow(clippy::let_and_return, clippy::eq_op)]")?;
-    writeln!(
-        &mut w,
-        "#![allow(clippy::useless_conversion, clippy::unnecessary_cast)]"
-    )?;
-    writeln!(
-        &mut w,
-        "#![allow(clippy::excessive_precision, clippy::manual_range_contains, clippy::absurd_extreme_comparisons, clippy::too_many_arguments)]"
-    )?;
-    writeln!(&mut w, "#![deny(clippy::arithmetic_side_effects)]")?;
-    writeln!(&mut w)?;
-    writeln!(
-        &mut w,
-        "//! Message definitions from file `{:?}`",
-        config.dbc_name
-    )?;
-    writeln!(&mut w, "//!")?;
-    writeln!(&mut w, "//! - Version: `{:?}`", dbc.version())?;
-    writeln!(&mut w)?;
-    writeln!(&mut w, "use core::ops::BitOr;")?;
-    writeln!(&mut w, "use bitvec::prelude::*;")?;
-    writeln!(&mut w, "use embedded_can::{{Id, StandardId, ExtendedId}};")?;
-
-    config.impl_arbitrary.fmt_cfg(&mut w, |w| {
-        writeln!(w, "use arbitrary::{{Arbitrary, Unstructured}};")
-    })?;
-
-    config.impl_serde.fmt_cfg(&mut w, |w| {
-        writeln!(w, "use serde::{{Serialize, Deserialize}};")
-    })?;
-
-    writeln!(&mut w)?;
-
-    render_dbc(&mut w, &config, &dbc).context("could not generate Rust code")?;
-
-    writeln!(&mut w)?;
-    writeln!(&mut w, "/// This is just to make testing easier")?;
-    writeln!(&mut w, "#[allow(dead_code)]")?;
-    writeln!(&mut w, "fn main() {{}}")?;
-    writeln!(&mut w)?;
-    render_error(&mut w, &config)?;
-    render_arbitrary_helpers(&mut w, &config)?;
-    writeln!(&mut w)?;
+    writeln!(&mut w, "}}")?;
 
     Ok(())
 }
